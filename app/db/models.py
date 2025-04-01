@@ -1,13 +1,7 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Float, DateTime, Enum
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+from datetime import datetime
 from app.db.base_class import Base
-import enum
-
-class TransactionType(str, enum.Enum):
-    DEPOSIT = "deposit"
-    WITHDRAWAL = "withdrawal"
-    TRANSFER = "transfer"
 
 class User(Base):
     __tablename__ = "users"
@@ -17,19 +11,18 @@ class User(Base):
     hashed_password = Column(String)
     full_name = Column(String)
     is_active = Column(Boolean, default=True)
-    
+    is_superuser = Column(Boolean, default=False)
     accounts = relationship("Account", back_populates="owner")
-    transactions = relationship("Transaction", back_populates="user")
 
 class Account(Base):
     __tablename__ = "accounts"
 
     id = Column(Integer, primary_key=True, index=True)
     account_number = Column(String, unique=True, index=True)
-    balance = Column(Float, default=0.0)
     account_type = Column(String)  # savings, checking, etc.
+    balance = Column(Float, default=0.0)
     owner_id = Column(Integer, ForeignKey("users.id"))
-    
+    created_at = Column(DateTime, default=datetime.utcnow)
     owner = relationship("User", back_populates="accounts")
     transactions = relationship("Transaction", back_populates="account")
 
@@ -37,12 +30,9 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, index=True)
-    amount = Column(Float)
-    transaction_type = Column(Enum(TransactionType))
-    timestamp = Column(DateTime(timezone=True), server_default=func.now())
-    description = Column(String)
     account_id = Column(Integer, ForeignKey("accounts.id"))
-    user_id = Column(Integer, ForeignKey("users.id"))
-    
-    account = relationship("Account", back_populates="transactions")
-    user = relationship("User", back_populates="transactions") 
+    amount = Column(Float)
+    transaction_type = Column(String)  # deposit, withdrawal, transfer
+    description = Column(String)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    account = relationship("Account", back_populates="transactions") 

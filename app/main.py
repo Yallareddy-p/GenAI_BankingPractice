@@ -1,36 +1,35 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.config import settings
 from app.api.api_v1.api import api_router
+from app.core.config import settings
 from app.db.session import engine
-from app.db.base import Base
+from app.db import models
 
 # Create database tables
-Base.metadata.create_all(bind=engine)
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title=settings.PROJECT_NAME,
-    version=settings.VERSION,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+    title="GenAI Banking API",
+    description="A modern banking API with AI capabilities",
+    version="1.0.0"
 )
 
-# Set up CORS middleware
+# Set up CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Include API router
-app.include_router(api_router, prefix=settings.API_V1_STR)
+app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
     return {
-        "message": "Welcome to GenAI Banking Assistant API",
-        "version": settings.VERSION,
-        "docs_url": "/docs",
-        "redoc_url": "/redoc"
+        "message": "Welcome to GenAI Banking API",
+        "docs": "/docs",
+        "redoc": "/redoc"
     } 

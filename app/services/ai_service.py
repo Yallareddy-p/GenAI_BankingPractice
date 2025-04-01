@@ -1,76 +1,61 @@
-from langchain.llms import OpenAI
-from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
+from openai import AsyncOpenAI
 from app.core.config import settings
-from typing import List, Dict, Any
-import json
+from sqlalchemy.orm import Session
+from typing import Dict, Any
 
-class BankingAIService:
+class AIService:
     def __init__(self):
-        self.llm = OpenAI(
-            api_key=settings.OPENAI_API_KEY,
-            temperature=0.7
+        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+    async def analyze_transaction(self, transaction_id: int, db: Session) -> Dict[str, Any]:
+        """
+        Analyze a transaction using AI to detect potential fraud or provide insights
+        """
+        # Get transaction from database
+        transaction = db.query("Transaction").filter_by(id=transaction_id).first()
+        if not transaction:
+            raise ValueError("Transaction not found")
+
+        # Prepare prompt for AI
+        prompt = f"""
+        Please analyze this banking transaction:
+        Amount: ${transaction.amount}
+        Type: {transaction.transaction_type}
+        Description: {transaction.description}
+        Time: {transaction.timestamp}
+        
+        Provide insights about:
+        1. Potential fraud indicators
+        2. Spending category
+        3. Financial advice
+        """
+
+        response = await self.client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a banking AI assistant specializing in transaction analysis and fraud detection."},
+                {"role": "user", "content": prompt}
+            ]
         )
         
-    def analyze_transaction(self, transaction_data: Dict[str, Any]) -> Dict[str, Any]:
-        prompt = PromptTemplate(
-            input_variables=["transaction"],
-            template="""
-            Analyze the following banking transaction and provide insights:
-            Transaction: {transaction}
-            
-            Please provide:
-            1. Risk assessment (low/medium/high)
-            2. Spending category
-            3. Any suspicious patterns
-            4. Recommendations
-            
-            Format the response as JSON.
-            """
+        return {
+            "analysis": response.choices[0].message.content,
+            "transaction_id": transaction_id
+        }
+
+    async def chat(self, message: str, db: Session) -> Dict[str, Any]:
+        """
+        Chat with the AI assistant about banking-related queries
+        """
+        response = await self.client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a helpful banking assistant. Provide clear, accurate information about banking services, financial advice, and account management."},
+                {"role": "user", "content": message}
+            ]
         )
         
-        chain = LLMChain(llm=self.llm, prompt=prompt)
-        result = chain.run(transaction=json.dumps(transaction_data))
-        return json.loads(result)
-    
-    def get_financial_advice(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
-        prompt = PromptTemplate(
-            input_variables=["user_data"],
-            template="""
-            Based on the following user's financial data, provide personalized advice:
-            User Data: {user_data}
-            
-            Please provide:
-            1. Spending analysis
-            2. Budget recommendations
-            3. Investment suggestions
-            4. Risk assessment
-            
-            Format the response as JSON.
-            """
-        )
-        
-        chain = LLMChain(llm=self.llm, prompt=prompt)
-        result = chain.run(user_data=json.dumps(user_data))
-        return json.loads(result)
-    
-    def detect_fraud(self, transaction_data: Dict[str, Any]) -> Dict[str, Any]:
-        prompt = PromptTemplate(
-            input_variables=["transaction"],
-            template="""
-            Analyze the following transaction for potential fraud:
-            Transaction: {transaction}
-            
-            Please provide:
-            1. Fraud risk score (0-100)
-            2. Suspicious indicators
-            3. Recommended actions
-            4. Confidence level
-            
-            Format the response as JSON.
-            """
-        )
-        
-        chain = LLMChain(llm=self.llm, prompt=prompt)
-        result = chain.run(transaction=json.dumps(transaction_data))
-        return json.loads(result) 
+        return {
+            "message": message,
+            "response": response.choices[0].message.content
+        } 
